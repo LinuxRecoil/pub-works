@@ -1,0 +1,34 @@
+## macOS関連のファイル
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# アイコンファイル
+Icon?
+
+# サムネイル
+._*
+
+# Vimスワップファイル
+*.swp
+
+# macOSのディスクイメージファイル
+.VolumeIcon.icns
+.TemporaryItems
+.Trashes
+
+# Xcode関連 (必要な場合)
+# .xcodeprojのユーザー設定
+*.xcuserdatad
+# ビルドディレクトリ
+build/
+DerivedData/
+
+# その他の一般的な無視ファイル (例: テキストエディタのバックアップ)
+*~
+
+# 秘匿情報
+secrets.env
+secrets.json
+secrets.yaml
+secrets.zsh
