@@ -1,0 +1,154 @@
+/**
+ * シート管理メイン関数
+ * - シートを昇順でソート
+ * - indexシートにリンク一覧を作成
+ * - 各シートにindexへの戻りリンクを設置
+ */
+function index() {
+  const CONFIG = {
+    UNMOVE_SHEET_COUNT: 5,        // 移動しないシート数
+    INDEX_SHEET_NAME: 'index',    // indexシート名
+    LINK_START_ROW: 3,            // リンク一覧の開始行
+    LINK_START_COL: 2,            // リンク一覧の開始列
+    BACK_LINK_ROW: 1,             // 戻りリンクの行
+    BACK_LINK_COL: 1              // 戻りリンクの列
+  };
+
+  try {
+    // シートを昇順でソート
+    sortSheets(CONFIG.UNMOVE_SHEET_COUNT);
+
+    // indexシートにリンク一覧を作成
+    createSheetLinks(CONFIG.LINK_START_ROW, CONFIG.LINK_START_COL);
+
+    // 各シートにindexへの戻りリンクを設置
+    createBackToIndexLinks(CONFIG.INDEX_SHEET_NAME, CONFIG.BACK_LINK_ROW, CONFIG.BACK_LINK_COL);
+
+    SpreadsheetApp.getActiveSpreadsheet().toast('処理が完了しました', 'シート管理', 3);
+  } catch (error) {
+    showError('index関数でエラーが発生しました', error);
+  }
+}
+
+/**
+ * 指定した枚数のシートを除いて、残りを昇順でソート
+ * @param {number} unmoveCount - 移動しないシート数
+ */
+function sortSheets(unmoveCount) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const allSheets = spreadsheet.getSheets();
+  const currentSheet = spreadsheet.getActiveSheet();
+
+  // ソート対象のシートが存在しない場合は終了
+  if (allSheets.length <= unmoveCount) {
+    Logger.log('ソート対象のシートがありません');
+    return;
+  }
+
+  try {
+    // ソート対象のシート情報を収集
+    const sortableSheets = [];
+    for (let i = unmoveCount; i < allSheets.length; i++) {
+      sortableSheets.push({
+        name: allSheets[i].getName(),
+        sheet: allSheets[i]
+      });
+    }
+
+    // シート名で昇順ソート（大文字小文字を区別しない）
+    sortableSheets.sort((a, b) => {
+      const nameA = a.name.toLowerCase();
+      const nameB = b.name.toLowerCase();
+      return nameA.localeCompare(nameB);
+    });
+
+    // シートを実際に並び替え
+    sortableSheets.forEach((item, index) => {
+      item.sheet.activate();
+      spreadsheet.moveActiveSheet(unmoveCount + index + 1);
+    });
+
+    // 元のシートに戻る
+    currentSheet.activate();
+
+    Logger.log(`${sortableSheets.length}枚のシートをソートしました`);
+  } catch (error) {
+    currentSheet.activate(); // エラー時も元のシートに戻す
+    throw new Error(`シートのソート中にエラーが発生しました: ${error.message}`);
+  }
+}
+
+/**
+ * indexシートに全シートへのハイパーリンクを作成
+ * @param {number} startRow - リンク一覧の開始行
+ * @param {number} startCol - リンク一覧の開始列
+ */
+function createSheetLinks(startRow, startCol) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = spreadsheet.getSheets();
+  const spreadsheetId = spreadsheet.getId();
+  const indexSheet = sheets[0];
+
+  try {
+    // 各シートのハイパーリンク文字列を生成
+    const linkFormulas = sheets.map(sheet => {
+      const sheetId = sheet.getSheetId();
+      const sheetName = sheet.getSheetName();
+      const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${sheetId}`;
+      return [`=HYPERLINK("${url}","${sheetName}")`];
+    });
+
+    // リンクをindexシートに一括設定
+    const range = indexSheet.getRange(startRow, startCol, linkFormulas.length, 1);
+    range.setValues(linkFormulas);
+
+    Logger.log(`${linkFormulas.length}個のリンクを作成しました`);
+  } catch (error) {
+    throw new Error(`リンク作成中にエラーが発生しました: ${error.message}`);
+  }
+}
+
+/**
+ * 各シート（index以外）にindexへの戻りリンクを設置
+ * @param {string} indexSheetName - indexシートの名前
+ * @param {number} row - リンクを設置する行
+ * @param {number} col - リンクを設置する列
+ */
+function createBackToIndexLinks(indexSheetName, row, col) {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = spreadsheet.getSheets();
+  const spreadsheetId = spreadsheet.getId();
+
+  // indexシートのgidを取得（通常は0だが、念のため取得）
+  const indexSheet = sheets[0];
+  const indexSheetId = indexSheet.getSheetId();
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit#gid=${indexSheetId}`;
+    const linkFormula = `=HYPERLINK("${url}","${indexSheetName}")`;
+
+    // index以外の全シートに戻りリンクを設置
+    let linkCount = 0;
+    for (let i = 1; i < sheets.length; i++) {
+      const sheet = sheets[i];
+      const range = sheet.getRange(row, col);
+      range.setValue(linkFormula);
+      linkCount++;
+    }
+
+    Logger.log(`${linkCount}個の戻りリンクを作成しました`);
+  } catch (error) {
+    throw new Error(`戻りリンク作成中にエラーが発生しました: ${error.message}`);
+  }
+}
+
+/**
+ * エラーメッセージを表示
+ * @param {string} message - メッセージ
+ * @param {Error} error - エラーオブジェクト
+ */
+function showError(message, error) {
+  const errorMessage = `${message}\n\n行番号: ${error.lineNumber || '不明'}\nエラー: ${error.message}`;
+  Browser.msgBox('エラー', errorMessage, Browser.Buttons.OK);
+  Logger.log(errorMessage);
+}
