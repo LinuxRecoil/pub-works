@@ -1,18 +1,52 @@
 /**
+ * スプレッドシートを開いた時に自動実行される関数
+ * カスタムメニューを追加
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  
+  ui.createMenu('📋 シート管理')
+    .addItem('🔄 シート整理（すべて実行）', 'index')
+    .addSeparator()
+    .addItem('📊 シートをソート', 'menuSortSheets')
+    .addItem('🔗 リンク一覧を作成', 'menuCreateLinks')
+    .addItem('↩️ 戻りリンクを作成', 'menuCreateBackLinks')
+    .addSeparator()
+    .addItem('❌ すべてのリンクをクリア', 'menuClearAllLinks')
+    .addSeparator()
+    .addItem('⚙️ 設定を変更', 'menuShowSettings')
+    .addToUi();
+}
+
+/**
+ * グローバル設定
+ */
+const CONFIG = {
+  UNMOVE_SHEET_COUNT: 5,        // 移動しないシート数
+  INDEX_SHEET_NAME: 'index',    // indexシート名
+  LINK_START_ROW: 3,            // リンク一覧の開始行
+  LINK_START_COL: 2,            // リンク一覧の開始列
+  BACK_LINK_ROW: 1,             // 戻りリンクの行
+  BACK_LINK_COL: 1              // 戻りリンクの列
+};
+
+/**
  * シート管理メイン関数
  * - シートを昇順でソート
  * - indexシートにリンク一覧を作成
  * - 各シートにindexへの戻りリンクを設置
  */
 function index() {
-  const CONFIG = {
-    UNMOVE_SHEET_COUNT: 5,        // 移動しないシート数
-    INDEX_SHEET_NAME: 'index',    // indexシート名
-    LINK_START_ROW: 3,            // リンク一覧の開始行
-    LINK_START_COL: 2,            // リンク一覧の開始列
-    BACK_LINK_ROW: 1,             // 戻りリンクの行
-    BACK_LINK_COL: 1              // 戻りリンクの列
-  };
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '確認',
+    'シートの整理を実行しますか？\n\n実行内容:\n1. シートを名前順にソート\n2. リンク一覧を作成\n3. 戻りリンクを作成',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) {
+    return;
+  }
 
   try {
     // シートを昇順でソート
@@ -24,10 +58,151 @@ function index() {
     // 各シートにindexへの戻りリンクを設置
     createBackToIndexLinks(CONFIG.INDEX_SHEET_NAME, CONFIG.BACK_LINK_ROW, CONFIG.BACK_LINK_COL);
 
-    SpreadsheetApp.getActiveSpreadsheet().toast('処理が完了しました', 'シート管理', 3);
+    showSuccess('シート整理が完了しました！');
   } catch (error) {
-    showError('index関数でエラーが発生しました', error);
+    showError('シート整理中にエラーが発生しました', error);
   }
+}
+
+/**
+ * メニューから呼び出される関数：シートのソートのみ実行
+ */
+function menuSortSheets() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '確認',
+    `${CONFIG.UNMOVE_SHEET_COUNT + 1}枚目以降のシートを名前順にソートしますか？`,
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  try {
+    sortSheets(CONFIG.UNMOVE_SHEET_COUNT);
+    showSuccess('シートのソートが完了しました！');
+  } catch (error) {
+    showError('シートのソート中にエラーが発生しました', error);
+  }
+}
+
+/**
+ * メニューから呼び出される関数：リンク一覧の作成のみ実行
+ */
+function menuCreateLinks() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '確認',
+    'indexシートにリンク一覧を作成しますか？',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  try {
+    createSheetLinks(CONFIG.LINK_START_ROW, CONFIG.LINK_START_COL);
+    showSuccess('リンク一覧の作成が完了しました！');
+  } catch (error) {
+    showError('リンク一覧の作成中にエラーが発生しました', error);
+  }
+}
+
+/**
+ * メニューから呼び出される関数：戻りリンクの作成のみ実行
+ */
+function menuCreateBackLinks() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '確認',
+    '各シートに戻りリンクを作成しますか？',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  try {
+    createBackToIndexLinks(CONFIG.INDEX_SHEET_NAME, CONFIG.BACK_LINK_ROW, CONFIG.BACK_LINK_COL);
+    showSuccess('戻りリンクの作成が完了しました！');
+  } catch (error) {
+    showError('戻りリンクの作成中にエラーが発生しました', error);
+  }
+}
+
+/**
+ * メニューから呼び出される関数：すべてのリンクをクリア
+ */
+function menuClearAllLinks() {
+  const ui = SpreadsheetApp.getUi();
+  const response = ui.alert(
+    '警告',
+    'すべてのリンクをクリアしますか？\n\nこの操作は元に戻せません。',
+    ui.ButtonSet.YES_NO
+  );
+
+  if (response !== ui.Button.YES) {
+    return;
+  }
+
+  try {
+    clearAllLinks();
+    showSuccess('すべてのリンクをクリアしました！');
+  } catch (error) {
+    showError('リンククリア中にエラーが発生しました', error);
+  }
+}
+
+/**
+ * メニューから呼び出される関数：設定ダイアログを表示
+ */
+function menuShowSettings() {
+  const ui = SpreadsheetApp.getUi();
+  
+  const message = `現在の設定:
+  
+📌 固定シート数: ${CONFIG.UNMOVE_SHEET_COUNT}枚
+📝 Indexシート名: ${CONFIG.INDEX_SHEET_NAME}
+📍 リンク一覧の位置: ${CONFIG.LINK_START_ROW}行${CONFIG.LINK_START_COL}列目
+🔙 戻りリンクの位置: ${CONFIG.BACK_LINK_ROW}行${CONFIG.BACK_LINK_COL}列目
+
+設定を変更するには、スクリプトエディタで
+CONFIG オブジェクトを編集してください。`;
+
+  ui.alert('設定情報', message, ui.ButtonSet.OK);
+}
+
+/**
+ * すべてのリンクをクリア
+ */
+function clearAllLinks() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = spreadsheet.getSheets();
+  const indexSheet = sheets[0];
+
+  // indexシートのリンク一覧をクリア
+  const lastRow = indexSheet.getLastRow();
+  if (lastRow >= CONFIG.LINK_START_ROW) {
+    const clearRange = indexSheet.getRange(
+      CONFIG.LINK_START_ROW,
+      CONFIG.LINK_START_COL,
+      lastRow - CONFIG.LINK_START_ROW + 1,
+      1
+    );
+    clearRange.clearContent();
+  }
+
+  // 各シートの戻りリンクをクリア
+  for (let i = 1; i < sheets.length; i++) {
+    const sheet = sheets[i];
+    const range = sheet.getRange(CONFIG.BACK_LINK_ROW, CONFIG.BACK_LINK_COL);
+    range.clearContent();
+  }
+
+  Logger.log('すべてのリンクをクリアしました');
 }
 
 /**
@@ -143,12 +318,22 @@ function createBackToIndexLinks(indexSheetName, row, col) {
 }
 
 /**
+ * 成功メッセージを表示
+ * @param {string} message - メッセージ
+ */
+function showSuccess(message) {
+  SpreadsheetApp.getActiveSpreadsheet().toast(message, '✅ 完了', 3);
+  Logger.log(message);
+}
+
+/**
  * エラーメッセージを表示
  * @param {string} message - メッセージ
  * @param {Error} error - エラーオブジェクト
  */
 function showError(message, error) {
-  const errorMessage = `${message}\n\n行番号: ${error.lineNumber || '不明'}\nエラー: ${error.message}`;
-  Browser.msgBox('エラー', errorMessage, Browser.Buttons.OK);
-  Logger.log(errorMessage);
+  const ui = SpreadsheetApp.getUi();
+  const errorMessage = `${message}\n\n詳細: ${error.message}`;
+  ui.alert('❌ エラー', errorMessage, ui.ButtonSet.OK);
+  Logger.log(`${message} - ${error.message}`);
 }
